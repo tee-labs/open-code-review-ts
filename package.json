@@ -1,5 +1,5 @@
 {
-  "name": "tee-labs/open-code-review-ts",
+  "name": "@tee-labs/open-code-review-ts",
   "version": "0.1.0",
   "description": "TypeScript port of alibaba/open-code-review - AI-powered code review tool",
   "type": "module",
