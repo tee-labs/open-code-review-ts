@@ -6,6 +6,7 @@ import type {
   ToolDefinition,
   ToolCall,
 } from '../core/types.js';
+import { createLLMFetch } from '../util/fetch.js';
 
 export class LLMClient {
   private client: OpenAI;
@@ -15,6 +16,7 @@ export class LLMClient {
     this.client = new OpenAI({
       baseURL: config.url,
       apiKey: config.token,
+      fetch: createLLMFetch(),
     });
     this.model = config.model;
   }

@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { loadConfig, resolveLLMConfig } from '../core/config.js';
+import { createLLMFetch } from '../util/fetch.js';
 
 export function llmCommand(): Command {
   const cmd = new Command('llm')
@@ -27,6 +28,7 @@ export function llmCommand(): Command {
         const client = new OpenAI({
           baseURL: resolved.url,
           apiKey: resolved.token,
+          fetch: createLLMFetch(),
         });
 
         const model = options.model || resolved.model;
