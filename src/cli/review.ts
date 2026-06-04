@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { resolveLLMConfig } from '../core/config.js';
+import { loadConfig, resolveLLMConfig } from '../core/config.js';
 import { MicromatchRuleResolver } from '../rules/resolver.js';
 import { runReview } from '../agent/agent.js';
 import type { AgentArgs } from '../core/types.js';
@@ -18,7 +18,7 @@ export function reviewCommand(): Command {
     .option('--output <path>', 'Output file path')
     .action(async (options) => {
       const cwd = process.cwd();
-      const llmConfig = resolveLLMConfig({});
+      const llmConfig = resolveLLMConfig(loadConfig());
 
       if (!llmConfig.token) {
         console.log(JSON.stringify({
