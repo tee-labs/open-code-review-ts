@@ -1,0 +1,30 @@
+{
+  "name": "open-code-review-ts",
+  "version": "0.1.0",
+  "description": "TypeScript port of alibaba/open-code-review - AI-powered code review tool",
+  "type": "module",
+  "bin": {
+    "ocr": "./bin/ocr.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "tsx bin/ocr.ts"
+  },
+  "dependencies": {
+    "commander": "^12.0.0",
+    "js-tiktoken": "^1.0.0",
+    "micromatch": "^4.0.0",
+    "openai": "^4.0.0",
+    "p-limit": "^6.0.0",
+    "simple-git": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/micromatch": "^4.0.0",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
+  }
+}
