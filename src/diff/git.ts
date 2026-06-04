@@ -1,41 +1,50 @@
 import { simpleGit, type SimpleGit } from 'simple-git';
-import type { DiffType, Diff } from '../core/types.js';
+import type { Diff } from '../core/types.js';
 import { parseDiff } from './parser.js';
 
 export interface GitDiffOptions {
-  workspace: string;
-  diffType: DiffType;
-  commitRange?: string;
+  mode: 'workspace' | 'commit' | 'range';
+  from?: string;
+  to?: string;
+  commit?: string;
 }
 
 export class GitDiffProvider {
   private git: SimpleGit;
+  private refForFileRead: string | null = null;
 
   constructor(workspace: string) {
     this.git = simpleGit(workspace);
   }
 
   async getDiffs(options: GitDiffOptions): Promise<Diff[]> {
-    switch (options.diffType) {
+    this.refForFileRead = null;
+
+    switch (options.mode) {
       case 'workspace':
         return this.getWorkspaceDiff();
       case 'commit':
-        return this.getCommitDiff(options.commitRange);
+        this.refForFileRead = options.commit ?? null;
+        return this.getCommitDiff(options.commit);
       case 'range':
-        return this.getRangeDiff(options.commitRange);
+        this.refForFileRead = options.to ?? 'HEAD';
+        return this.getRangeDiff(options.from, options.to);
       default:
-        throw new Error(`Unknown diff type: ${options.diffType}`);
+        throw new Error(`Unknown diff mode: ${options.mode}`);
     }
   }
 
   async getWorkspaceDiff(): Promise<Diff[]> {
-    const diffText = await this.git.diff();
-    return parseDiff(diffText);
+    const [unstaged, staged] = await Promise.all([
+      this.git.diff(),
+      this.git.diff(['--cached']),
+    ]);
+    const combined = [unstaged, staged].filter(Boolean).join('\n');
+    return parseDiff(combined);
   }
 
   async getCommitDiff(commit?: string): Promise<Diff[]> {
     if (!commit) {
-      // Get diff of the latest commit
       const log = await this.git.log({ maxCount: 1 });
       if (log.latest) {
         const diffText = await this.git.show([log.latest.hash, '--format=""']);
@@ -43,19 +52,27 @@ export class GitDiffProvider {
       }
       return [];
     }
-
-    // git diff HEAD~1..HEAD or use the specific commit range
-    const diffText = await this.git.diff([`${commit}~1..${commit}`]);
+    const diffText = await this.git.show([commit, '--format=""']);
     return parseDiff(diffText);
   }
 
-  async getRangeDiff(range?: string): Promise<Diff[]> {
-    const ref = range || 'HEAD';
-    const diffText = await this.git.diff([ref]);
+  async getRangeDiff(from?: string, to?: string): Promise<Diff[]> {
+    const fromRef = from || 'HEAD';
+    const toRef = to || 'HEAD';
+    let baseRef: string;
+    try {
+      baseRef = (await this.git.raw(['merge-base', fromRef, toRef])).trim();
+    } catch {
+      baseRef = fromRef;
+    }
+    const diffText = await this.git.diff([`${baseRef}..${toRef}`]);
     return parseDiff(diffText);
   }
 
   async getFileContent(filePath: string): Promise<string> {
+    if (this.refForFileRead) {
+      return this.git.show([`${this.refForFileRead}:${filePath}`]);
+    }
     return this.git.show([`HEAD:${filePath}`]);
   }
 

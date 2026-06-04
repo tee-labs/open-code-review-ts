@@ -29,9 +29,9 @@ import { MAIN_TASK_TOOLS, PLAN_TASK_TOOLS } from '../config/tools-config.js';
 import { SessionHistory } from '../session/history.js';
 import { silenceStdout, restoreStdout } from '../util/stdout.js';
 
-// Context compression thresholds (matching original Go logic)
-const SOFT_THRESHOLD = 0.6; // 60% of context window - compress oldest
-const HARD_THRESHOLD = 0.8; // 80% - aggressive compression
+// Context compression thresholds
+const SOFT_THRESHOLD = 0.6;
+const HARD_THRESHOLD = 0.8;
 const DEFAULT_MAX_TOKENS = 128000;
 
 export async function runReview(args: AgentArgs): Promise<CodeReviewResult> {
@@ -92,9 +92,7 @@ export class ReviewAgent {
 
     const sessionId = this.sessionHistory.createRecord(this.args);
 
-    // Process files concurrently with p-limit
-    const concurrency = 8;
-    const limit = pLimit(concurrency);
+    const limit = pLimit(this.args.concurrency);
     const results = await Promise.all(
       filteredDiffs.map((diff) =>
         limit(() => this.reviewFile(diff, sessionId)),
@@ -111,10 +109,14 @@ export class ReviewAgent {
   }
 
   private async loadDiffs(): Promise<Diff[]> {
+    const mode = this.args.commit ? 'commit' as const
+      : this.args.from ? 'range' as const
+      : 'workspace' as const;
     return this.diffProvider.getDiffs({
-      workspace: this.args.workspace,
-      diffType: this.args.diffType,
-      commitRange: this.args.commitRange,
+      mode,
+      from: this.args.from,
+      to: this.args.to,
+      commit: this.args.commit,
     });
   }
 
@@ -142,13 +144,12 @@ export class ReviewAgent {
       file_path: filePath,
       language,
       rules: rulesFlattened,
-      review_guidelines: '',
+      review_guidelines: this.args.background ? `Business context: ${this.args.background}` : '',
     };
 
-    const collector = new InMemoryCollector();
+  const collector = new InMemoryCollector();
 
-    // Optional plan phase for large diffs
-    if (diff.insertions + diff.deletions >= this.args.maxPlanPhaseDiffSize) {
+  if (diff.insertions + diff.deletions >= this.args.maxPlanPhaseDiffSize) {
       const planMessages = fillTemplateMessages(
         buildPlanTaskMessages(templateVars),
         templateVars,
@@ -160,10 +161,9 @@ export class ReviewAgent {
         filePath,
         sessionId,
       );
-    }
+}
 
-    // Main review phase
-    const mainMessages = fillTemplateMessages(
+  const mainMessages = fillTemplateMessages(
       buildMainTaskMessages(templateVars),
       templateVars,
     );
@@ -188,13 +188,11 @@ export class ReviewAgent {
     const messages: LLMMessage[] = [...initialMessages];
     const ctx = this.buildToolContext(collector);
 
-    // Convert LLMMessage[] to the format needed for session logging
     for (const msg of initialMessages) {
       this.sessionHistory.appendMessage(sessionId, msg);
     }
 
     for (let round = 0; round < this.args.maxToolRound; round++) {
-      // Check context compression
       this.checkCompression(messages);
 
       const response = await this.llm.chat(messages, toolDefs, {
@@ -206,7 +204,6 @@ export class ReviewAgent {
         this.sessionHistory.updateUsage(sessionId, response.usage);
       }
 
-      // Add assistant response to messages
       const assistantMsg: LLMMessage = {
         role: 'assistant',
         content: response.content,
@@ -215,12 +212,10 @@ export class ReviewAgent {
       messages.push(assistantMsg);
       this.sessionHistory.appendMessage(sessionId, assistantMsg);
 
-      // No tool calls = conversation done
       if (response.tool_calls.length === 0) {
         break;
       }
 
-      // Execute each tool call
       for (const toolCall of response.tool_calls) {
         const result = await this.toolRegistry.execute(toolCall, ctx);
 
@@ -233,11 +228,10 @@ export class ReviewAgent {
         messages.push(toolMsg);
         this.sessionHistory.appendMessage(sessionId, toolMsg);
 
-        // Check if task_done was called with status DONE/FAILED
         if (toolCall.name === 'task_done' && result.success) {
           const data = result.data as { status?: string; _done?: boolean };
           if (data?._done) {
-            return; // Exit the loop
+            return;
           }
         }
       }
@@ -249,17 +243,14 @@ export class ReviewAgent {
     const ratio = totalTokens / this.tokenLimit;
 
     if (ratio >= HARD_THRESHOLD) {
-      // Aggressive compression: keep last 1/3 of messages
       const keepCount = Math.max(messages.length / 3, 10);
       messages.splice(0, messages.length - keepCount);
 
-      // Insert a system note about compression
       messages.unshift({
         role: 'system',
         content: `[Context was compressed. Earlier messages were removed to fit token limits. Continuing review. Total tokens before compression: ~${totalTokens}]`,
       });
     } else if (ratio >= SOFT_THRESHOLD) {
-      // Mild compression: keep last 2/3
       const keepCount = Math.max((messages.length * 2) / 3, 10);
       messages.splice(0, messages.length - keepCount);
 
@@ -305,9 +296,8 @@ export class ReviewAgent {
           }
         }
 
-        if (!resolved) {
-          // Try full file content
-          try {
+      if (!resolved) {
+        try {
             const fileContent = await this.diffProvider.getFileContent(comment.path);
             if (fileContent && diff.hunks.length > 0) {
               const range = this.lineResolver.resolveInFile(
@@ -320,9 +310,8 @@ export class ReviewAgent {
                 comment.endLine = range.endLine;
               }
             }
-          } catch {
-            // File not found, keep 0/0
-          }
+      } catch {
+      }
         }
 
         return comment;

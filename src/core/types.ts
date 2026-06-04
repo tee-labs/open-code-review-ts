@@ -99,8 +99,12 @@ export interface TokenUsage {
 
 export interface AgentArgs {
   workspace: string;
-  diffType: DiffType;
-  commitRange?: string;
+  /** Source ref for range diff mode (e.g. 'main'). Requires `to`. */
+  from?: string;
+  /** Target ref for range diff mode (e.g. 'feature-branch'). Requires `from`. */
+  to?: string;
+  /** Single commit hash/tag to review (vs its parent). Mutually exclusive with from/to. */
+  commit?: string;
   rules: Rule[];
   template: TaskTemplate;
   tools: ToolDefinition[];
@@ -113,9 +117,13 @@ export interface AgentArgs {
   temperature: number;
   outputPath?: string;
   maxPlanPhaseDiffSize: number;
+  /** Business context / requirements for the review (--background). */
+  background?: string;
+  /** If true, list files that would be reviewed without running LLM. */
+  preview?: boolean;
+  /** Max concurrent file reviews (default 8). */
+  concurrency: number;
 }
-
-export type DiffType = 'workspace' | 'commit' | 'range';
 
 export interface Rule {
   name: string;

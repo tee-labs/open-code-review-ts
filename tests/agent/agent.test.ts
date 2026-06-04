@@ -38,7 +38,7 @@ describe('ReviewAgent', () => {
   it('can be instantiated', () => {
     const args: AgentArgs = {
       workspace: tempDir,
-      diffType: 'workspace',
+      concurrency: 8,
       rules: [],
       template: {
         mainTask: [],
@@ -63,7 +63,7 @@ describe('ReviewAgent', () => {
   it('runs review with empty diff gracefully', async () => {
     const args: AgentArgs = {
       workspace: tempDir,
-      diffType: 'workspace',
+      concurrency: 8,
       rules: [],
       template: {
         mainTask: [],
