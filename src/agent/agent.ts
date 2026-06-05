@@ -23,11 +23,10 @@ import { CodeSearchTool } from '../tools/code-search.js';
 import { CodeCommentTool } from '../tools/code-comment.js';
 import { TaskDoneTool } from '../tools/task-done.js';
 import { isExcluded, isAllowedExtension } from '../config/file-filters.js';
-import { MicromatchRuleResolver, flattenRules } from '../rules/resolver.js';
+import { SystemRuleResolver } from '../rules/resolver.js';
 import { buildMainTaskMessages, buildPlanTaskMessages, fillTemplateMessages } from '../config/task-template.js';
 import { MAIN_TASK_TOOLS, PLAN_TASK_TOOLS } from '../config/tools-config.js';
 import { SessionHistory } from '../session/history.js';
-import { silenceStdout, restoreStdout } from '../util/stdout.js';
 
 // Context compression thresholds
 const SOFT_THRESHOLD = 0.6;
@@ -56,7 +55,7 @@ export class ReviewAgent {
   private llm: LLMClient;
   private diffProvider: GitDiffProvider;
   private lineResolver: LineNumberResolver;
-  private ruleResolver: MicromatchRuleResolver;
+  private ruleResolver: SystemRuleResolver;
   private toolRegistry: ToolRegistry;
   private sessionHistory: SessionHistory;
   private tokenLimit: number;
@@ -66,7 +65,7 @@ export class ReviewAgent {
     this.llm = new LLMClient(args.llmConfig);
     this.diffProvider = new GitDiffProvider(args.workspace);
     this.lineResolver = new LineNumberResolver();
-    this.ruleResolver = new MicromatchRuleResolver(args.rules);
+    this.ruleResolver = new SystemRuleResolver();
     this.toolRegistry = new ToolRegistry();
     this.sessionHistory = new SessionHistory();
     this.tokenLimit = DEFAULT_MAX_TOKENS;
@@ -135,15 +134,17 @@ export class ReviewAgent {
 
   private async reviewFile(diff: Diff, sessionId: string): Promise<LlmComment[]> {
     const filePath = diff.newPath || diff.oldPath;
-    const rules = this.ruleResolver.getRulesForFile(filePath);
-    const rulesFlattened = flattenRules(rules);
+    const systemRule = this.ruleResolver.resolve(filePath);
     const language = detectLanguage(filePath);
+    const changeFilesExcludingCurrent = this.buildChangeFilesExcept(filePath);
 
     const templateVars = {
       diff: diff.diff,
       file_path: filePath,
       language,
-      rules: rulesFlattened,
+      system_rule: systemRule,
+      change_files: changeFilesExcludingCurrent,
+      requirement_background: this.args.background || '',
       review_guidelines: this.args.background ? `Business context: ${this.args.background}` : '',
     };
 
@@ -234,6 +235,14 @@ export class ReviewAgent {
         }
       }
     }
+  }
+
+  private buildChangeFilesExcept(currentPath: string): string {
+    if (!this.args.diffs) return '';
+    return this.args.diffs
+      .map((d) => d.newPath || d.oldPath)
+      .filter((p): p is string => p !== null && p !== currentPath)
+      .join('\n');
   }
 
   private checkCompression(messages: LLMMessage[]): void {

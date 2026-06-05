@@ -104,6 +104,7 @@ export interface AgentArgs {
   commit?: string;
   language?: string;
   rules: Rule[];
+  diffs?: Diff[];
   template: TaskTemplate;
   tools: ToolDefinition[];
   llmConfig: LLMConfig;
@@ -120,6 +121,23 @@ export interface AgentArgs {
   concurrency: number;
 }
 
+/** A single glob→rule mapping (matches Go's PathRule). */
+export interface PathRule {
+  pattern: string;
+  rule: string;
+}
+
+/**
+ * SystemRule holds review rules loaded from system-rules.json + rule-docs/*.md.
+ * After loading, DefaultRule and each PathRule.rule contain full markdown content.
+ * Matches Go's SystemRule exactly.
+ */
+export interface SystemRule {
+  defaultRule: string;
+  pathRules: PathRule[];
+}
+
+/** Backward-compatible simple rule type for user-defined custom rules. */
 export interface Rule {
   name: string;
   description: string;

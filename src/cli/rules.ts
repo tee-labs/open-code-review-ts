@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { MicromatchRuleResolver, flattenRules } from '../rules/resolver.js';
+import { SystemRuleResolver, loadDefaultRules } from '../rules/resolver.js';
 
 export function rulesCommand(): Command {
   const cmd = new Command('rules')
@@ -7,46 +7,44 @@ export function rulesCommand(): Command {
 
   cmd
     .command('check')
-    .description('Check which rules apply to a file')
+    .description('Check which rule applies to a file')
     .argument('<file>', 'File path to check')
     .action((file: string) => {
-      const resolver = new MicromatchRuleResolver();
-      const rules = resolver.getRulesForFile(file);
+      const resolver = new SystemRuleResolver();
+      const ruleText = resolver.resolve(file);
+      const ruleName = resolver.resolveName(file);
       console.log(JSON.stringify({
         file,
-        matchingRules: rules.length > 0 ? rules : ['(default rules applied)'],
-        rulesCount: rules.length,
+        matchingRule: ruleName,
+      }, null, 2));
+    });
+
+  cmd
+    .command('show')
+    .description('Show rule content for a file or rule name')
+    .argument('<file>', 'File path to check')
+    .action((file: string) => {
+      const resolver = new SystemRuleResolver();
+      const ruleText = resolver.resolve(file);
+      console.log(JSON.stringify({
+        file,
+        content: ruleText,
       }, null, 2));
     });
 
   cmd
     .command('list')
-    .description('List all available rules')
+    .description('List all available rule mappings')
     .action(() => {
-      const resolver = new MicromatchRuleResolver();
-      const allRules = resolver.getAllRules();
-      const result = allRules.map((r) => ({
-        name: r.name,
-        description: r.description,
-        globPattern: r.globPattern,
-        ruleCount: r.rules.length,
+      const systemRules = loadDefaultRules();
+      const pathRules = systemRules.pathRules.map((pr) => ({
+        pattern: pr.pattern,
+        rulePreview: pr.rule.split('\n').slice(0, 2).join('\n') + '...',
       }));
-      console.log(JSON.stringify(result, null, 2));
-    });
-
-  cmd
-    .command('show')
-    .description('Show full rule content for a rule name')
-    .argument('<name>', 'Rule name (e.g., typescript, python)')
-    .action((name: string) => {
-      const resolver = new MicromatchRuleResolver();
-      const allRules = resolver.getAllRules();
-      const rule = allRules.find((r) => r.name === name);
-      if (!rule) {
-        console.log(JSON.stringify({ error: `Rule "${name}" not found` }, null, 2));
-        return;
-      }
-      console.log(JSON.stringify(rule, null, 2));
+      console.log(JSON.stringify({
+        defaultRule: systemRules.defaultRule.split('\n')[0],
+        pathRules,
+      }, null, 2));
     });
 
   return cmd;

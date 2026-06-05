@@ -250,6 +250,3 @@ export function simpleGlobMatch(filePath: string, pattern: string): boolean {
 /**
  * Flatten all rules into a single string for prompt injection.
  */
-export function flattenRules(rules: string[]): string {
-  return rules.map((r, i) => `${i + 1}. ${r}`).join('\n');
-}

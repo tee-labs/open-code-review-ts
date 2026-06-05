@@ -1,41 +1,73 @@
 import { describe, it, expect } from 'vitest';
-import { MicromatchRuleResolver, flattenRules } from '../../src/rules/resolver.js';
-import type { Rule } from '../../src/core/types.js';
+import { SystemRuleResolver, loadDefaultRules, flattenRules } from '../../src/rules/resolver.js';
 
-describe('MicromatchRuleResolver', () => {
-  const resolver = new MicromatchRuleResolver();
+describe('SystemRuleResolver', () => {
+  const resolver = new SystemRuleResolver();
 
-  it('returns TypeScript rules for .ts files', () => {
-    const rules = resolver.getRulesForFile('src/test.ts');
-    expect(rules.length).toBeGreaterThan(0);
-    expect(rules.some((r) => r.toLowerCase().includes('type'))).toBe(true);
+  it('resolves TypeScript files to ts_js_tsx_jsx rules', () => {
+    const ruleText = resolver.resolve('src/test.ts');
+    expect(ruleText).toBeTruthy();
+    expect(ruleText.length).toBeGreaterThan(50);
+    expect(ruleText).toContain('拼写错误');
   });
 
-  it('returns Python rules for .py files', () => {
-    const rules = resolver.getRulesForFile('src/test.py');
-    expect(rules.length).toBeGreaterThan(0);
-    expect(rules.some((r) => r.toLowerCase().includes('exception') || r.toLowerCase().includes('none'))).toBe(true);
+  it('resolves .tsx files to ts_js_tsx_jsx rules', () => {
+    const ruleText = resolver.resolve('components/Button.tsx');
+    expect(ruleText).toBeTruthy();
+    expect(ruleText).toContain('React');
   });
 
-  it('returns default rules for unknown files', () => {
-    const rules = resolver.getRulesForFile('somefile.xyz');
-    // Default rules should match anything
-    expect(rules.length).toBeGreaterThan(0);
+  it('resolves .py files to default rules (no specific Python rule)', () => {
+    const ruleText = resolver.resolve('src/test.py');
+    expect(ruleText).toBeTruthy();
+    expect(ruleText).toBe(resolver.resolve('somefile.xyz'));
   });
 
-  it('prefers more specific pattern', () => {
-    const customRules: Rule[] = [
-      { name: 'all', description: 'Generic', globPattern: '**/*', rules: ['generic rule'] },
-      { name: 'ts-specific', description: 'TS', globPattern: '**/*.ts', rules: ['typescript specific'] },
-    ];
-    const customResolver = new MicromatchRuleResolver(customRules);
-    const rules = customResolver.getRulesForFile('src/test.ts');
-    expect(rules).toContain('typescript specific');
+  it('resolves .java files to java rules', () => {
+    const ruleText = resolver.resolve('src/Main.java');
+    expect(ruleText).toBeTruthy();
+    expect(ruleText.length).toBeGreaterThan(50);
+    expect(ruleText).toContain('并发');
+  });
+
+  it('resolves .json files to json rules', () => {
+    const ruleText = resolver.resolve('config.json');
+    expect(ruleText).toBeTruthy();
+    expect(ruleText.length).toBeGreaterThan(20);
+  });
+
+  it('falls back to default rule for unknown extensions', () => {
+    const ruleText = resolver.resolve('somefile.xyz');
+    expect(ruleText).toBeTruthy();
+    expect(ruleText).toContain('Correctness');
+  });
+
+  it('returns default rule name for unknown files', () => {
+    const name = resolver.resolveName('somefile.xyz');
+    expect(name).toBe('default');
+  });
+
+  it('returns correct pattern name for .ts files', () => {
+    const name = resolver.resolveName('src/test.ts');
+    expect(name).toContain('ts,js,tsx,jsx');
   });
 
   it('handles nested paths correctly', () => {
-    const rules = resolver.getRulesForFile('src/components/Button.tsx');
-    expect(rules.length).toBeGreaterThan(0);
+    const ruleText = resolver.resolve('src/deeply/nested/path/util.ts');
+    expect(ruleText.length).toBeGreaterThan(50);
+  });
+});
+
+describe('loadDefaultRules', () => {
+  it('loads system_rules.json and inlines markdown content', () => {
+    const rules = loadDefaultRules();
+    expect(rules.defaultRule).toBeTruthy();
+    expect(rules.defaultRule.length).toBeGreaterThan(50);
+    expect(rules.pathRules.length).toBeGreaterThan(0);
+
+    const tsRule = rules.pathRules.find((pr) => pr.pattern.includes('ts'));
+    expect(tsRule).toBeTruthy();
+    expect(tsRule!.rule.length).toBeGreaterThan(50);
   });
 });
 

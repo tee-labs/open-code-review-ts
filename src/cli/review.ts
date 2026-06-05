@@ -1,6 +1,5 @@
 import { Command } from 'commander';
 import { loadConfig, resolveLLMConfig } from '../core/config.js';
-import { MicromatchRuleResolver } from '../rules/resolver.js';
 import { runReview } from '../agent/agent.js';
 import { isExcluded, isAllowedExtension } from '../config/file-filters.js';
 import type { AgentArgs } from '../core/types.js';
