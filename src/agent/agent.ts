@@ -150,9 +150,8 @@ export class ReviewAgent {
   const collector = new InMemoryCollector();
 
   if (diff.insertions + diff.deletions >= this.args.maxPlanPhaseDiffSize) {
-      const planMessages = fillTemplateMessages(
-        buildPlanTaskMessages(templateVars),
-        templateVars,
+      const planMessages = this.applyLanguageInstruction(
+        fillTemplateMessages(buildPlanTaskMessages(templateVars), templateVars),
       );
       await this.executeToolLoop(
         planMessages,
@@ -163,10 +162,9 @@ export class ReviewAgent {
       );
 }
 
-  const mainMessages = fillTemplateMessages(
-      buildMainTaskMessages(templateVars),
-      templateVars,
-    );
+  const mainMessages = this.applyLanguageInstruction(
+    fillTemplateMessages(buildMainTaskMessages(templateVars), templateVars),
+  );
     await this.executeToolLoop(
       mainMessages,
       MAIN_TASK_TOOLS,
@@ -268,6 +266,14 @@ export class ReviewAgent {
       git: simpleGit(this.args.workspace),
       commentCollector: collector,
     };
+  }
+
+  private applyLanguageInstruction(messages: LLMMessage[]): LLMMessage[] {
+    const lang = this.args.language || 'Chinese';
+    const instruction = `\n\nAlways respond in ${lang}.`;
+    return messages.map(m =>
+      m.role === 'system' ? { ...m, content: m.content + instruction } : m,
+    );
   }
 
   private async resolveLineNumbers(

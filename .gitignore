@@ -31,3 +31,6 @@ npm-debug.log*
 
 # Coverage
 coverage/
+
+# Sisyphus orchestration
+.sisyphus/

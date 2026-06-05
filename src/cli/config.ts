@@ -54,6 +54,7 @@ export function configCommand(): Command {
           token: '',
           model: 'gpt-4o',
         },
+        language: 'Chinese',
         extensions: [],
         excludePatterns: [],
         maxToolRound: 20,

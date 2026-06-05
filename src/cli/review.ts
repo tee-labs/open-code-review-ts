@@ -23,7 +23,8 @@ export function reviewCommand(): Command {
     .option('-p, --preview', 'List files to review without running LLM')
     .action(async (options) => {
       const cwd = process.cwd();
-      const llmConfig = resolveLLMConfig(loadConfig());
+      const userConfig = loadConfig();
+      const llmConfig = resolveLLMConfig(userConfig);
 
       const modeCount = (options.from || options.to ? 1 : 0) + (options.commit ? 1 : 0);
       if (modeCount > 1) {
@@ -57,6 +58,7 @@ export function reviewCommand(): Command {
         from: options.from,
         to: options.to,
         commit: options.commit,
+        language: userConfig.language,
         rules: [],
         template: null as unknown as AgentArgs['template'],
         tools: [],
